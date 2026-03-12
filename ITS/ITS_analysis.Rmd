@@ -1,0 +1,305 @@
+```{r setup}
+knitr::opts_chunk$set(
+	error = TRUE,
+	message = TRUE
+)
+
+mycolors = c("#018BFF", "#01FDFF", "#01FF61", "#F9FF01", "#FFD101", "#C08227", 
+"#C02727", "#ecd078", "#C177C7", "#EBBAE3", "#BAEBC4", "#397DD7", "#6FE8D9", 
+"#69d2e7", "#a7dbd8", "#e0e4cc", "#f38630", "#fa6900", "#fe4365", "#fc9d9a", "#f9cdad", 
+"#c8c8a9", "#83af9b", "#65216B", "#d95b43", "#c02942", "#542437", "#53777a")
+```
+
+```{r}
+set.seed(123)
+
+library(phyloseq)
+library(microeco)
+library(file2meco)
+library(tidyverse)
+library(microbiome)
+library(knitr)
+library(DT)
+library(ggpubr)
+library(microViz)
+library(ComplexHeatmap)
+```
+
+## Import microeco objects
+```{r}
+
+meco_sklearn <- readRDS("./meco_sklearn.rds")
+meco_blast <- readRDS("./meco_blast.rds")
+meco_vsearch <- readRDS("./meco_vsearch.rds")
+
+```
+
+
+## Taxonomy assignment
+```{r}
+# For each amplicon sequence variant (ASV), the taxonomy with the most resolved elements 
+# was selected from the three classifications (i.e., the taxonomy that provided the highest 
+# level of resolution, such as species-level assignment, was prioritized over less specific classifications).
+
+# From Scikit-learn algorithm classification
+meco1 <- clone(meco_sklearn)
+
+tax_meta = meco1$tax_table
+
+tax_rows = rownames(tax_meta)
+t = apply(tax_meta, 2, function(x) str_replace_all(x, ".__$", "Unclassified"))
+t = apply(t, 2, function(x) str_replace_all(x, ".*_sp", "Unclassified"))
+t = apply(t, 2, function(x) str_replace_all(x, "s__metagenome", "Unclassified"))
+
+rownames(t) = tax_rows
+tax_meta = t
+
+ASV = apply(tax_meta, 1, function(x) grep("Unclassified",x , value = TRUE, invert = TRUE)[length(grep("Unclassified",x , value = TRUE, invert = TRUE))])
+
+ASV = ifelse(ASV == "character(0)", "Unclassified", ASV)
+
+ASV = paste("[ASV", c(1:length(rownames(meco1$tax_table))), "f] ", ASV, sep = "")
+meco1$tax_table = as.data.frame(tax_meta)
+meco1$tax_table$ASV = ASV
+
+# From VSEARCH classification
+meco2 <- clone(meco_vsearch)
+meco2$tax_table = meco2$tax_table[rownames(meco1$tax_table),]
+
+tax_meta = meco2$tax_table
+
+tax_rows = rownames(tax_meta)
+t = apply(tax_meta, 2, function(x) str_replace_all(x, ".__$", "Unclassified"))
+t = apply(t, 2, function(x) str_replace_all(x, ".*_sp", "Unclassified"))
+t = apply(t, 2, function(x) str_replace_all(x, "s__metagenome", "Unclassified"))
+
+rownames(t) = tax_rows
+tax_meta = t
+
+ASV = apply(tax_meta, 1, function(x) grep("Unclassified",x , value = TRUE, invert = TRUE)[length(grep("Unclassified",x , value = TRUE, invert = TRUE))])
+
+ASV = ifelse(ASV == "character(0)", "Unclassified", ASV)
+
+ASV = paste("[ASV", c(1:length(rownames(meco2$tax_table))), "f] ", ASV, sep = "")
+meco2$tax_table = as.data.frame(tax_meta)
+meco2$tax_table$ASV = ASV
+
+
+# From BLAST+ classification
+meco3 <- clone(meco_blast)
+meco3$tax_table = meco3$tax_table[rownames(meco1$tax_table),]
+
+tax_meta = meco3$tax_table
+
+tax_rows = rownames(tax_meta)
+t = apply(tax_meta, 2, function(x) str_replace_all(x, ".__$", "Unclassified"))
+t = apply(t, 2, function(x) str_replace_all(x, ".*_sp", "Unclassified"))
+t = apply(t, 2, function(x) str_replace_all(x, "s__metagenome", "Unclassified"))
+
+rownames(t) = tax_rows
+tax_meta = t
+
+ASV = apply(tax_meta, 1, function(x) grep("Unclassified",x , value = TRUE, invert = TRUE)[length(grep("Unclassified",x , value = TRUE, invert = TRUE))])
+
+ASV = ifelse(ASV == "character(0)", "Unclassified", ASV)
+
+ASV = paste("[ASV", c(1:length(rownames(meco3$tax_table))), "f] ", ASV, sep = "")
+meco3$tax_table = as.data.frame(tax_meta)
+meco3$tax_table$ASV = ASV
+```
+```{r}
+# The taxonomy that provided the highest level of resolution, such as species-level assignment,
+# was prioritized over less specific classifications
+
+tax_meta = NULL
+
+for(row in 1:length(rownames(meco1$tax_table))) {
+
+tax1 = length(grep("Unclassified",meco1$tax_table[row,] , value = TRUE, invert = FALSE))
+tax2 = length(grep("Unclassified",meco2$tax_table[row,] , value = TRUE, invert = FALSE))
+tax3 = length(grep("Unclassified",meco3$tax_table[row,] , value = TRUE, invert = FALSE))
+
+if (tax1 > tax2) {
+   if (tax2 > tax3) {
+	  t = meco3$tax_table[row,]
+   } else {
+	  t = meco2$tax_table[row,]
+   }
+} else {
+   t = meco1$tax_table[row,]
+}
+
+tax_meta = rbind(tax_meta, t)
+
+}
+```
+
+
+```{r}
+meco <- clone(meco_sklearn)
+
+metadata <- read.table("../Metagenome metadata/sampledata_its_meta.txt", header = T, row.names = 1, sep = "\t")
+
+meco$sample_table <- metadata
+meco$tax_table = as.data.frame(tax_meta)
+
+# Filter pollution
+meco$filter_pollution(taxa = c("mitochondria", "chloroplast"))
+meco$tax_table = filter(meco$tax_table, Kingdom != "k__Viridiplantae", Kingdom != "k__Protista", Kingdom != "Unclassified")
+meco$tidy_dataset()
+```
+
+
+# ASV table
+```{r}
+tmp <- clone(meco)
+tmp$filter_taxa(rel_abund = 0.0001, freq = 0) # ASVs were filtered based on a relative abundance threshold of > 0.01%
+ASV_id = as.data.frame(tmp$rep_fasta)
+ASV_id$ASV_id = rownames(ASV_id)
+Taxonomy = tmp$tax_table
+Taxonomy$ASV_id = rownames(Taxonomy)
+ASV_id = left_join(ASV_id, Taxonomy, by = "ASV_id")
+ASV_id = as_tibble(ASV_id)
+
+bar = clone(tmp)
+bar = bar$merge_samples("Plant")
+t1 <- trans_abund$new(dataset = bar, taxrank = "ASV", ntaxa = 1000, delete_taxonomy_prefix = F)
+
+Plant = pivot_wider(t1$data_abund[,c("Taxonomy", "Sample", "Abundance")], names_from = "Sample", values_from = "Abundance")
+colnames(Plant) = c("ASV", as.character(unique(meco$sample_table$Plant)))
+
+ASV = left_join(ASV_id, Plant, by = "ASV")
+ASV = ASV[, c("x", "Kingdom","Phylum","Class","Order","Family","Genus","Species","ASV", as.character(unique(meco$sample_table$Plant)))]
+colnames(ASV) = c("DNA sequence", "Kingdom","Phylum","Class","Order","Family","Genus","Species","ASV",as.character(unique(meco$sample_table$Plant)))
+
+write.table(ASV, "../Table S5. ASVs (ITS).txt", quote = F, sep = "\t")
+```
+
+
+## Bar plot (Class)
+```{r}
+tmp <- clone(meco)
+tmp$filter_taxa(rel_abund = 0.0001, freq = 0) # ASVs were filtered based on a relative abundance threshold of > 0.01%
+```
+
+```{r}
+bar = clone(tmp)
+bar = bar$merge_samples("Plant")
+
+bar$tax_table$Class = str_replace_all(bar$tax_table$Class, "Unclassified", "c__")
+
+t1 <- trans_abund$new(dataset = bar, taxrank = "Class", ntaxa = 10, delete_taxonomy_prefix = F)
+```
+```{r fig.width=5, fig.height=6}
+barplot <- function(order_x = unique(t1$data_abund$Sample), order_tax = t1$data_taxanames, path, width = 10, height = 10, dpi = 400) {
+p = t1$plot_bar(others_color = "grey70", xtext_keep = TRUE, legend_text_italic = FALSE,
+	color_values = mycolors,
+	order_x = order_x, xtext_angle = 45)
+p$data$Taxonomy = factor(p$data$Taxonomy, rev(c(order_tax[order_tax != "Unclassified"], "Unclassified", "Others")))
+
+p = p +
+geom_text(aes(x = Sample, y = Abundance, 
+		label = ifelse(Abundance > 5, scales::percent(Abundance, scale = 1, accuracy = 1), ""), 
+		group = Taxonomy),
+		inherit.aes = FALSE, position = position_stack(vjust = 0.5), col = "black") +
+scale_fill_manual(
+    values = c(mycolors[1:length(order_tax)-1], "grey90", "grey70"),
+    breaks = c(order_tax[order_tax != "Unclassified"], "Unclassified", "Others")) +
+guides(fill = guide_legend(reverse = TRUE, ncol = 1))
+
+legend <- get_legend(p)
+plot_without_legend <- p + theme(legend.position = "none")
+
+ggarrange(plot_without_legend)
+ggsave(paste0(path, ".png"), width=width, height=height, dpi=dpi)
+
+ggarrange(legend)
+ggsave(paste0(path, " legend.png"), width=width, height=height, dpi=dpi)
+
+}
+
+path = "../fig 5a. Plant bar plot (Class) (ITS)"
+barplot(path = path, width = 3, height = 6, order_x = c("Alpha (Healthy)","Alpha (Sick)","Solaris (Sick)"))
+```
+
+## Plant venn diagramm
+```{r fig.width=5, fig.height=5}
+ven = clone(tmp)
+ven = ven$merge_samples("Plant")
+
+tax = as.data.frame(ven$tax_table[,"ASV"])
+rownames(tax) = rownames(ven$tax_table)
+colnames(tax) = "ASV"
+ven$tax_table = tax
+ven = ven$merge_taxa("ASV")
+
+rownames(ven$tax_table) = ven$tax_table$ASV
+rownames(ven$otu_table) = ven$tax_table$ASV
+t1 <- trans_venn$new(ven)
+t1$plot_venn()
+ggsave("../fig 5b. Plant venn diagramm (ASV) (ITS).png", width=5, height=5, dpi=400)
+```
+```{r}
+datatable(t1$data_details, options = list(scrollX = TRUE, scrollY = TRUE))
+write.table(t1$data_details, sep = "\t", quote = FALSE, file="../Table S6. Plant venn diagramm (ASV) (ITS).txt")
+```
+
+
+## Heatmap (Top 20 ASVs)
+```{r}
+tmp <- clone(meco)
+tmp$filter_taxa(rel_abund = 0.0001, freq = 0)
+tmp$tidy_dataset()
+```
+```{r }
+
+psq <- meco2phyloseq(tmp)
+
+top = as.character(tax_table(psq)[top_taxa(psq, n = 20), "ASV"])
+psq = psq %>%
+	merge_samples("Plant") %>%
+	tax_transform("compositional", rank = "ASV") %>%
+	tax_select(top, ranks_searched = "all", strict_matches = T) 
+
+
+
+png("../fig 6. Heatmap Plant (ITS).png", width=5, height=6, units = "in", res=400)
+htmp = psq %>%
+	comp_heatmap(name = "Relative abundance", sample_names_show = T, numbers_use_counts = FALSE,
+		numbers = heat_numbers(decimals = 3), cluster_columns = T,
+		row_names_gp = gpar(fontsize = 8),
+		row_names_max_width = max_text_width("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+		column_names_gp = gpar(fontsize = 9),
+		column_names_rot = 45,
+		column_names_centered = F
+	) 
+draw(htmp, heatmap_legend_side = "bottom")
+dev.off()
+```
+
+
+## FungalTraits analysis
+```{r }
+t1 <- trans_func$new(tmp)
+
+t1$cal_spe_func(fungi_database = "FungalTraits")
+t1$cal_spe_func_perc(abundance_weighted = TRUE)
+
+tmp_mt <- clone(tmp)
+
+tmp_mt$taxa_abund$func <- as.data.frame(t(t1$res_spe_func_perc), check.names = FALSE)
+
+t2 <- trans_diff$new(dataset = tmp_mt, method = "anova", group = "Diseased", taxa_level = "func")
+```
+```{r }
+t3 = clone(t2)
+
+t3$res_diff = subset(t3$res_diff, Taxa %in% grep("primary", t3$res_diff$Taxa, value = TRUE, invert = FALSE))
+```
+```{r }
+t3$plot_diff_abund(plot_type = "barerrorbar", use_number = 1:50, add_sig = T, simplify_names = FALSE, color_values = c("#D75C20", "#4B974F")) + ggplot2::ylab("Relative abundance") +
+    theme(legend.text = element_text(size = 20), legend.title = element_text(size = 20)) +
+    labs(fill = "Diseased", color = "Diseased")
+
+ggsave("../fig 7. FungalTraits (ITS).png", width=12, height=6, dpi=400)
+```

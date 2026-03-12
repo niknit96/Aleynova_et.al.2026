@@ -1,0 +1,9 @@
+Sample	Sequence Read Archive (SRA)	Plant	Organ material	Species	Diseased
+S85	SRR35674573	Alpha (Sick)	Leaf	Vitis labrusca × Vitis riparia cv. Alpha 	yes
+S86	SRR35674572	Alpha (Sick)	Leaf	Vitis labrusca × Vitis riparia cv. Alpha 	yes
+S87	SRR35674571	Solaris (Sick)	Leaf	Merzling × Geisenheim 6493 cv. Solaris 	yes
+S88	SRR35674570	Solaris (Sick)	Leaf	Merzling × Geisenheim 6493 cv. Solaris 	yes
+S85-ITS-2group-alpha-healthy	SRR25433213	Alpha (Healthy)	Leaf	Vitis labrusca × Vitis riparia cv. Alpha 	no
+S86-ITS-2group-alpha-healthy	SRR25433212	Alpha (Healthy)	Leaf	Vitis labrusca × Vitis riparia cv. Alpha 	no
+S87-ITS-2group-alpha-healthy	SRR25433211	Alpha (Healthy)	Stem	Vitis labrusca × Vitis riparia cv. Alpha 	no
+S88-ITS-2group-alpha-healthy	SRR25433210	Alpha (Healthy)	Stem	Vitis labrusca × Vitis riparia cv. Alpha 	no
