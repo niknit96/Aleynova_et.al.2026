@@ -277,29 +277,3 @@ draw(htmp, heatmap_legend_side = "bottom")
 dev.off()
 ```
 
-
-## FungalTraits analysis
-```{r }
-t1 <- trans_func$new(tmp)
-
-t1$cal_spe_func(fungi_database = "FungalTraits")
-t1$cal_spe_func_perc(abundance_weighted = TRUE)
-
-tmp_mt <- clone(tmp)
-
-tmp_mt$taxa_abund$func <- as.data.frame(t(t1$res_spe_func_perc), check.names = FALSE)
-
-t2 <- trans_diff$new(dataset = tmp_mt, method = "anova", group = "Diseased", taxa_level = "func")
-```
-```{r }
-t3 = clone(t2)
-
-t3$res_diff = subset(t3$res_diff, Taxa %in% grep("primary", t3$res_diff$Taxa, value = TRUE, invert = FALSE))
-```
-```{r }
-t3$plot_diff_abund(plot_type = "barerrorbar", use_number = 1:50, add_sig = T, simplify_names = FALSE, color_values = c("#D75C20", "#4B974F")) + ggplot2::ylab("Relative abundance") +
-    theme(legend.text = element_text(size = 20), legend.title = element_text(size = 20)) +
-    labs(fill = "Diseased", color = "Diseased")
-
-ggsave("../fig 7. FungalTraits (ITS).png", width=12, height=6, dpi=400)
-```
