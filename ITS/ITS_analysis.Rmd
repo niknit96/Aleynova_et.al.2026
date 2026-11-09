@@ -23,6 +23,9 @@ library(DT)
 library(ggpubr)
 library(microViz)
 library(ComplexHeatmap)
+library(DESeq2)
+library(circlize)
+library(agricolae)
 ```
 
 ## Import microeco objects
@@ -251,29 +254,216 @@ tmp <- clone(meco)
 tmp$filter_taxa(rel_abund = 0.0001, freq = 0)
 tmp$tidy_dataset()
 ```
-```{r }
 
+```{r}
+psq <- meco2phyloseq(tmp)
+
+psq_glom <- psq %>%
+	tax_glom(taxrank = "ASV")
+
+tax = tax_table(psq_glom) |>
+    as.data.frame() |>
+    as_tibble(rownames = "OTU")
+
+deseq = phyloseq_to_deseq2(psq_glom, ~ Plant)
+deseq = DESeq(deseq)
+
+```
+
+```{r}
+data_subset_1 = results(deseq, contrast=c("Plant", "Alpha (Symptomatic)", "Alpha (Asymptomatic)")) %>%
+    as_tibble(rownames = "OTU") |>
+    left_join(tax, by = "OTU") |>
+	mutate(
+      signif = case_when(
+      padj < 0.001 ~ "***",
+      padj < 0.01 ~ "**",
+      padj < 0.05 ~ "*",
+      TRUE ~ ""),
+	  Plant = "Alpha (Symptomatic)")
+
+deseq_res = results(deseq, contrast=c("Plant", "Solaris (Symptomatic)", "Alpha (Asymptomatic)")) %>%
+    as_tibble(rownames = "OTU") |>
+    left_join(tax, by = "OTU") |>
+	mutate(
+      signif = case_when(
+      padj < 0.001 ~ "***",
+      padj < 0.01 ~ "**",
+      padj < 0.05 ~ "*",
+      TRUE ~ ""),
+	  Plant = "Solaris (Symptomatic)") |>
+	bind_rows(data_subset_1)
+
+deseq_res
+write_tsv(deseq_res, "deseq_res_ITS.txt")
+```
+
+
+```{r}
 psq <- meco2phyloseq(tmp)
 
 top = as.character(tax_table(psq)[top_taxa(psq, n = 20), "ASV"])
+
 psq = psq %>%
 	merge_samples("Plant") %>%
 	tax_transform("compositional", rank = "ASV") %>%
-	tax_select(top, ranks_searched = "all", strict_matches = T) 
+	tax_select(top, ranks_searched = "all", strict_matches = T) |>
+    psmelt() %>%
+    as_tibble()
+
+deseq_res_top = filter(deseq_res, ASV %in% top)
 
 
 
-png("../fig 6. Heatmap Plant (ITS).png", width=5, height=6, units = "in", res=400)
-htmp = psq %>%
-	comp_heatmap(name = "Relative abundance", sample_names_show = T, numbers_use_counts = FALSE,
-		numbers = heat_numbers(decimals = 3), cluster_columns = T,
-		row_names_gp = gpar(fontsize = 8),
-		row_names_max_width = max_text_width("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
-		column_names_gp = gpar(fontsize = 9),
-		column_names_rot = 45,
-		column_names_centered = F
-	) 
-draw(htmp, heatmap_legend_side = "bottom")
+mat = pivot_wider(psq, id_cols = "OTU", names_from = "Sample", values_from = "Abundance") %>%
+   column_to_rownames("OTU") %>%
+   as.matrix()
+
+s = pivot_wider(deseq_res_top, id_cols = "ASV", names_from = "Plant", values_from = "signif") %>%
+   column_to_rownames("ASV") %>%
+   mutate(`Alpha (Asymptomatic)` = "") %>%
+   as.matrix()
+
+s = s[rownames(mat), colnames(mat)]
+
+s[is.na(s)] <- ""
+
+s = matrix(
+  paste(round(mat, 3), s, sep = " "),
+  nrow = nrow(s),
+  ncol = ncol(s)
+)
+
+col_fun = colorRamp2(breaks = c(0, max(mat)), colors = c("#ffffff", "#ff0000"))
+
+png("./fig 5. Heatmap Plant (ITS).png", width=9, height=6, units = "in", res=400)
+
+Hmap = Heatmap(mat, 
+	name = "Realative abundance", 
+	col = col_fun,
+	column_title_gp = gpar(fontface = "italic"),
+	cluster_columns = TRUE,
+	row_names_max_width = max_text_width("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+	row_names_gp = gpar(fontface = ifelse(grepl("s__|g__|f__", rownames(mat)), "italic", "plain")),
+	column_names_gp = gpar(fontface = "italic"),
+	column_names_rot = 45,
+	column_names_centered = FALSE,
+	heatmap_legend_param = list(legend_height = unit(2, "cm"), 
+		grid_width = unit(0.5, "cm")),
+	cell_fun = function(j, i, x, y, w, h, col) {
+grid.text(s[i, j], x, y, gp = gpar(fontsize = 9))
+})
+
+draw(Hmap)
 dev.off()
+```
+
+# Alpha diversity
+```{r}
+meco_rf <- clone(meco)
+meco_rf$tidy_dataset()
+```
+
+```{r}
+tmp <- clone(meco_rf)
+```
+## Shannon
+```{r fig.width=5, fig.height=6}
+t1 <- trans_alpha$new(dataset = tmp, group = "Plant")
+t1$cal_diff(method = "anova")
+p = t1$plot_alpha(plot_type = "errorbar", measure = "Shannon", add_line = TRUE, line_type = 2) 
+p <- p + theme(
+  axis.text.x = element_text(angle = 45, size = 10),   # Размер подписей категорий/групп на оси X
+)
+ggsave("Shannon (ITS).png", plot = p, width=4, height=5, dpi=400)
+```
+
+# ANOVA summary
+```{r}
+alpha = filter(t1$data_alpha, Measure == "Shannon")
+alpha$Plant <- factor(alpha$Plant)
+
+model <- aov(Value ~ Plant, data = alpha)
+
+summary(model)
+```
+
+# Beta diversity
+```{r }
+tmp <- clone(meco_rf)
+tmp$filter_taxa(rel_abund = 0.0001)
+tmp$tidy_dataset()
+tmp$cal_betadiv()
+```
+## Bray-curtis (Plant)
+```{r fig.width=6, fig.height=6}
+t1 <- trans_beta$new(dataset = tmp, group = "Plant", measure = "bray")
+t1$cal_ordination(method = "PCoA")
+p <- t1$plot_ordination(plot_color = "Plant", plot_type = c("point")) + 
+	guides(
+		color = guide_legend(order = 1),
+		fill = guide_legend(order = 1),
+		shape = guide_legend(order = 2)
+	) + 
+	labs(
+		color = "Plant",
+		fill = "Plant"
+	) + theme_bw()
+ggsave("Bray-curtis (ITS).png", plot = p, width=6, height=4, dpi=400)
+```
+## PERMANOVA
+```{r }
+t1$cal_manova(group = "diseased", manova_all = TRUE)
+kable(t1$res_manova)
+```
+
+## DESeq2 Class results
+```{r}
+tmp <- clone(meco)
+tmp$filter_taxa(rel_abund = 0.0001, freq = 0)
+tmp$tidy_dataset()
+```
+
+```{r}
+psq <- meco2phyloseq(tmp)
+
+psq_glom <- psq %>%
+	tax_glom(taxrank = "Class")
+
+tax = tax_table(psq_glom) |>
+    as.data.frame() |>
+    as_tibble(rownames = "OTU")
+
+deseq = phyloseq_to_deseq2(psq_glom, ~ Plant)
+deseq = DESeq(deseq)
+
+```
+
+```{r}
+data_subset_1 = results(deseq, contrast=c("Plant", "Alpha (Symptomatic)", "Alpha (Asymptomatic)")) %>%
+    as_tibble(rownames = "OTU") |>
+    left_join(tax, by = "OTU") |>
+	mutate(
+      signif = case_when(
+      padj < 0.001 ~ "***",
+      padj < 0.01 ~ "**",
+      padj < 0.05 ~ "*",
+      TRUE ~ ""),
+	  Plant = "Alpha (Symptomatic)")
+
+deseq_res = results(deseq, contrast=c("Plant", "Solaris (Symptomatic)", "Alpha (Asymptomatic)")) %>%
+    as_tibble(rownames = "OTU") |>
+    left_join(tax, by = "OTU") |>
+	mutate(
+      signif = case_when(
+      padj < 0.001 ~ "***",
+      padj < 0.01 ~ "**",
+      padj < 0.05 ~ "*",
+      TRUE ~ ""),
+	  Plant = "Solaris (Symptomatic)") |>
+	bind_rows(data_subset_1)
+
+deseq_res
+write_tsv(deseq_res, "deseq_res_Class_ITS.txt")
 ```
 
