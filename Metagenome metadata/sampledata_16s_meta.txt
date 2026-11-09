@@ -5,5 +5,3 @@ S25	SRR35674575	Solaris (Symptomatic)	Leaf	Merzling × Geisenheim 6493 cv. Solar
 S26	SRR35674574	Solaris (Symptomatic)	Leaf	Merzling × Geisenheim 6493 cv. Solaris 	yes
 S37-2	SRR25433200	Alpha (Asymptomatic)	Leaf	Vitis labrusca × Vitis riparia cv. Alpha 	no
 S38-2	SRR25433199	Alpha (Asymptomatic)	Leaf	Vitis labrusca × Vitis riparia cv. Alpha 	no
-S39-2	SRR25433228	Alpha (Asymptomatic)	Stem	Vitis labrusca × Vitis riparia cv. Alpha 	no
-S40-2	SRR25433227	Alpha (Asymptomatic)	Stem	Vitis labrusca × Vitis riparia cv. Alpha 	no
