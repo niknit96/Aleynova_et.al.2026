@@ -5,5 +5,3 @@ S87	SRR35674571	Solaris (Symptomatic)	Leaf	Merzling × Geisenheim 6493 cv. Solar
 S88	SRR35674570	Solaris (Symptomatic)	Leaf	Merzling × Geisenheim 6493 cv. Solaris 	yes
 S85-ITS-2group-alpha-healthy	SRR25433213	Alpha (Asymptomatic)	Leaf	Vitis labrusca × Vitis riparia cv. Alpha 	no
 S86-ITS-2group-alpha-healthy	SRR25433212	Alpha (Asymptomatic)	Leaf	Vitis labrusca × Vitis riparia cv. Alpha 	no
-S87-ITS-2group-alpha-healthy	SRR25433211	Alpha (Asymptomatic)	Stem	Vitis labrusca × Vitis riparia cv. Alpha 	no
-S88-ITS-2group-alpha-healthy	SRR25433210	Alpha (Asymptomatic)	Stem	Vitis labrusca × Vitis riparia cv. Alpha 	no
