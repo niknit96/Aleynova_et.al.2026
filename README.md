@@ -6,11 +6,11 @@ https://apptainer.org/docs/admin/main/installation.html
 ```
 2. Download Apptainer container via browser:
 ```
-https://files.sberdisk.ru/s/3VA8S1sK1lu3pxY
+https://disk.360.yandex.ru/d/SCiW43bUI_XhaA
 ```
 3. Run Apptainer container:
 ```
-apptainer run r-niknit_V4.sif
+apptainer run r-niknit_V7.sif
 ```
 4. Download code and data from Github:
 ```
